@@ -1,0 +1,10 @@
+CompileFlags:
+  Add: [
+    "-I/usr/include",
+    "-I/usr/include/c++/13",
+    "-I/usr/include/x86_64-linux-gnu/c++/13",
+    "-Wall",
+    "-Wextra",
+    "-Wpedantic"
+  ]
+
