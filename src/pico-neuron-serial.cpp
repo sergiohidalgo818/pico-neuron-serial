@@ -8,16 +8,24 @@
 #include <grp.h>
 #include <iomanip>
 #include <iostream>
+#include <pthread.h>
 #include <pwd.h>
+#include <sched.h>
 #include <string>
 #include <sys/stat.h>
 #include <termios.h>
+#include <thread>
 #include <unistd.h>
 #include <vector>
-
 using namespace std;
 using namespace std::chrono;
-
+#include <limits.h>
+#include <pthread.h>
+#include <sched.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/mman.h>
+steady_clock::time_point start_time;
 class DataWriter {
 public:
   string directory;
@@ -30,6 +38,7 @@ public:
 
   void write(const vector<double> &x, const vector<double> &t) {
     struct stat info;
+    steady_clock::time_point endtime = steady_clock::now();
     if (stat(directory.c_str(), &info) != 0) {
       cout << "Directory does not exist. Creating: " << directory << endl;
       mkdir(directory.c_str(), 0755);
@@ -45,14 +54,17 @@ public:
       return;
     }
 
-    file << std::fixed;
-    file << std::setprecision(8); // up to 8 decimal places
-
+    file << std::fixed << std::setprecision(8);
     file << "x" << separator << "time\n";
     for (size_t i = 0; i < x.size(); ++i) {
       file << x[i] << separator << t[i] << "\n";
     }
+
     file.close();
+    cout << "Data written to: " << path << endl;
+    cout << "Program runned for: "
+         << duration_cast<seconds>(endtime - start_time).count() << " seconds"
+         << endl;
   }
 };
 
@@ -61,7 +73,8 @@ DataWriter *data_writer = nullptr;
 vector<double> x;
 vector<double> t;
 int serial_fd;
-steady_clock::time_point start_time;
+float time_counter = 0;
+float incrr = 0.001;
 
 void signal_handler(int signum) {
   cout << "\nSaving data to " << data_writer->directory + data_writer->filename
@@ -156,6 +169,39 @@ speed_t get_baudrate(int baudrate) {
   }
 }
 
+void *serial_read_thread(void *arg) {
+  const size_t BUF_SIZE = 1024;
+  char buf[BUF_SIZE];
+  string partial_line;
+
+  while (true) {
+    int n = read(serial_fd, buf, sizeof(buf) - 1);
+    if (n > 0) {
+      buf[n] = '\0';
+      partial_line += string(buf); // Append new data
+
+      size_t pos;
+      while ((pos = partial_line.find('\n')) != string::npos) {
+        string line = partial_line.substr(0, pos);
+        partial_line.erase(0, pos + 1); // Remove processed line
+
+        if (line.empty())
+          continue;
+
+        try {
+          float value = stof(line);
+          x.push_back(value);
+          t.push_back(time_counter);
+          time_counter += incrr;
+        } catch (const invalid_argument &e) {
+          cerr << "Conversion error: [" << line << "] " << e.what() << endl;
+        }
+      }
+    }
+  }
+  return nullptr;
+}
+
 int main(int argc, char *argv[]) {
   string directory = "data/";
   string filename = "hindmarsh-rose.csv";
@@ -197,30 +243,48 @@ int main(int argc, char *argv[]) {
   start_time = steady_clock::now();
 
   char buf[50];
-  while (true) {
-    int n = read(serial_fd, buf, sizeof(buf) - 1);
-    if (n > 0) {
-      buf[n] = '\0';
-      string line(buf);
-      size_t pos = line.find('\n');
-      if (pos != string::npos) {
-        line = line.substr(0, pos);
-      }
-      if (line.empty())
-        continue; // Skip empty lines
+  string partial_line;
 
-      try {
-        float value = stof(line);
-        auto now = steady_clock::now();
-        double elapsed =
-            duration_cast<nanoseconds>(now - start_time).count() / 1e9;
-        x.push_back(value);
-        t.push_back(elapsed);
-      } catch (const invalid_argument &e) {
-        cerr << "Conversion error: " << e.what() << endl;
-      }
-    }
+  pthread_t thread;
+  pthread_attr_t attr;
+  int ret;
+
+  struct sched_param param;
+  if (mlockall(MCL_CURRENT | MCL_FUTURE) == -1) {
+    printf("mlockall failed: %m\n");
+    exit(-2);
   }
+  pthread_attr_init(&attr);
+  ret = pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN);
+  if (ret) {
+    printf("pthread setstacksize failed\n");
+    exit(-2);
+  }
+
+  ret = pthread_attr_setschedpolicy(&attr, SCHED_FIFO);
+  if (ret) {
+    printf("pthread setschedpolicy failed\n");
+    exit(-2);
+  }
+  param.sched_priority = 80;
+  ret = pthread_attr_setschedparam(&attr, &param);
+  if (ret) {
+    printf("pthread setschedparam failed\n");
+    exit(-2);
+  }
+  ret = pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);
+  if (ret) {
+    printf("pthread setinheritsched failed\n");
+    exit(-2);
+  }
+  ret = pthread_create(&thread, &attr, serial_read_thread, NULL);
+  if (ret) {
+    cerr << "Failed to create real-time thread: " << strerror(ret) << endl;
+  }
+  ret = pthread_join(thread, NULL);
+  if (ret)
+    printf("join pthread failed: %m\n");
+  pthread_attr_destroy(&attr);
 
   return 0;
 }
