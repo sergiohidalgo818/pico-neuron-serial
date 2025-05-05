@@ -26,6 +26,8 @@ using namespace std::chrono;
 #include <stdlib.h>
 #include <sys/mman.h>
 steady_clock::time_point start_time;
+bool real_measure = false;
+
 class DataWriter {
 public:
   string directory;
@@ -183,10 +185,16 @@ void *serial_read_thread(void *arg) {
   const size_t BUF_SIZE = 1024;
   char buf[BUF_SIZE];
   string partial_line;
+  steady_clock::time_point read_time;
+  bool clock_activated = false;
 
   while (true) {
     int n = read(serial_fd, buf, sizeof(buf) - 1);
     if (n > 0) {
+      if (!clock_activated && real_measure) {
+        read_time = steady_clock::now();
+        clock_activated = true;
+      }
       buf[n] = '\0';
       partial_line += string(buf); // Append new data
 
@@ -201,7 +209,14 @@ void *serial_read_thread(void *arg) {
         try {
           float value = stof(line);
           x.push_back(value);
-          t.push_back(time_counter);
+          if (real_measure) {
+            t.push_back(
+                duration_cast<microseconds>(steady_clock::now() - read_time)
+                    .count() /
+                1000000.0);
+          } else {
+            t.push_back(time_counter);
+          }
           time_counter += incrr;
         } catch (const invalid_argument &e) {
           if (line == "END") {
@@ -225,7 +240,7 @@ int main(int argc, char *argv[]) {
   string filename = "hindmarsh-rose.csv";
   string separator = " ";
   string serial_name = "/dev/ttyUSB0";
-  int serial_id = 1000000;
+  int serial_rate = 1000000;
 
   // Simple argument parsing
   for (int i = 1; i < argc; ++i) {
@@ -239,7 +254,9 @@ int main(int argc, char *argv[]) {
     else if ((arg == "-sn" || arg == "--serial-name") && i + 1 < argc)
       serial_name = argv[++i];
     else if ((arg == "-sr" || arg == "--serial-rate") && i + 1 < argc)
-      serial_id = stoi(argv[++i]);
+      serial_rate = stoi(argv[++i]);
+    else if ((arg == "-rm" || arg == "--real-measure") && i < argc)
+      real_measure = true;
   }
 
   check_permissions();
@@ -256,7 +273,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  configure_serial(serial_fd, get_baudrate(serial_id));
+  configure_serial(serial_fd, get_baudrate(serial_rate));
 
   start_time = steady_clock::now();
 
