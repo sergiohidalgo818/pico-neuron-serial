@@ -74,7 +74,7 @@ vector<double> x;
 vector<double> t;
 int serial_fd;
 float time_counter = 0;
-float incrr = 0.001;
+float incrr = 0.005;
 
 void signal_handler(int signum) {
   cout << "\nSaving data to " << data_writer->directory + data_writer->filename
@@ -163,6 +163,16 @@ speed_t get_baudrate(int baudrate) {
     return B57600;
   case 115200:
     return B115200;
+  case 1000000:
+    return B1000000;
+  case 1152000:
+    return B1152000;
+  case 1500000:
+    return B1500000;
+  case 2000000:
+    return B2000000;
+  case 3000000:
+    return B3000000;
   default:
     cerr << "Unsupported baud rate. Using 9600." << endl;
     return B9600;
@@ -194,7 +204,15 @@ void *serial_read_thread(void *arg) {
           t.push_back(time_counter);
           time_counter += incrr;
         } catch (const invalid_argument &e) {
-          cerr << "Conversion error: [" << line << "] " << e.what() << endl;
+          if (line == "END") {
+            cout << "\nSaving data to "
+                 << data_writer->directory + data_writer->filename << endl;
+            data_writer->write(x, t);
+            close(serial_fd);
+            exit(0);
+          } else {
+            cerr << "Conversion error: [" << line << "] " << e.what() << endl;
+          }
         }
       }
     }
@@ -207,7 +225,7 @@ int main(int argc, char *argv[]) {
   string filename = "hindmarsh-rose.csv";
   string separator = " ";
   string serial_name = "/dev/ttyUSB0";
-  int serial_id = 9600;
+  int serial_id = 1000000;
 
   // Simple argument parsing
   for (int i = 1; i < argc; ++i) {
@@ -220,7 +238,7 @@ int main(int argc, char *argv[]) {
       separator = argv[++i];
     else if ((arg == "-sn" || arg == "--serial-name") && i + 1 < argc)
       serial_name = argv[++i];
-    else if ((arg == "-si" || arg == "--serial-id") && i + 1 < argc)
+    else if ((arg == "-sr" || arg == "--serial-rate") && i + 1 < argc)
       serial_id = stoi(argv[++i]);
   }
 
