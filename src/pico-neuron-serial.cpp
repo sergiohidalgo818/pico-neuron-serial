@@ -277,7 +277,6 @@ int main(int argc, char *argv[]) {
 
   start_time = steady_clock::now();
 
-  char buf[50];
   string partial_line;
 
   pthread_t thread;
@@ -301,7 +300,7 @@ int main(int argc, char *argv[]) {
     printf("pthread setschedpolicy failed\n");
     exit(-2);
   }
-  param.sched_priority = 80;
+  param.sched_priority = 9;
   ret = pthread_attr_setschedparam(&attr, &param);
   if (ret) {
     printf("pthread setschedparam failed\n");
