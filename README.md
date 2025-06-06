@@ -20,6 +20,7 @@ This repository provides code to read with a realtime thread a USB port.
 git clone https://github.com/sergiohidalgo818/pico-neuron-serial.git
 cd pico-neuron-serial
 cmake -B build .
+sudo bash scripts/give_rt_privs.bash
 ```
 
 ### Usage
@@ -36,3 +37,13 @@ The program accepts several command line arguments to configure its behavior. Be
 | `-rm`, `--real-measure` | flag   | `false`              | If provided, enables "real measure" mode (no parameter needed; just include the flag in call).|
 
 
+
+## Scripts
+
+### give_rt_privs.bash
+
+Gives realtime privilege to program binary.
+
+### plot_model.py
+
+Plots the data, use with `-h` for viewing the arguments.
