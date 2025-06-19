@@ -11,7 +11,7 @@ This repository provides code to read with a realtime thread a USB port.
 ### Prerequisites
 
 - USB Port
-- C/C++ toolchain (such as GCC or the Raspberry Pi Pico SDK)
+- C/C++
 - Preempt-RT kernel
 
 ### Building
@@ -20,6 +20,9 @@ This repository provides code to read with a realtime thread a USB port.
 git clone https://github.com/sergiohidalgo818/pico-neuron-serial.git
 cd pico-neuron-serial
 cmake -B build .
+cd build
+make -j4
+cd ..
 sudo bash scripts/give_rt_privs.bash
 ```
 
@@ -36,6 +39,10 @@ The program accepts several command line arguments to configure its behavior. Be
 | `-sr`, `--serial-rate`  | int    | `1000000`            | Baud rate (speed) for the serial communication.                                               |
 | `-rm`, `--real-measure` | flag   | `false`              | If provided, enables "real measure" mode (no parameter needed; just include the flag in call).|
 
+
+```bash
+./build/
+```
 
 
 ## Scripts
