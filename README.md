@@ -40,8 +40,10 @@ The program accepts several command line arguments to configure its behavior. Be
 | `-rm`, `--real-measure` | flag   | `false`              | If provided, enables "real measure" mode (no parameter needed; just include the flag in call).|
 
 
+Example:
+
 ```bash
-./build/
+./build/pico-neuron-serial -f "hindmarsh-rose.csv" -rm
 ```
 
 
